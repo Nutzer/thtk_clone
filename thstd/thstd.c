@@ -571,11 +571,11 @@ std_create(
                     instr = realloc(instr, instr->size);
                     if (*after == 'f' || *after == '.') {
                         f = strtof(before, &after);
-                        memcpy((void*)(uint64_t)(instr + instr->size - (uint64_t)sizeof(float)),
+                        memcpy((void*)((uintptr_t)instr + instr->size - (uintptr_t)sizeof(float)),
                                &f, sizeof(float));
                         ++after;
                     } else {
-                        memcpy((void*)((uint64_t)instr + instr->size - (uint64_t)sizeof(int32_t)),
+                        memcpy((void*)((uintptr_t)instr + instr->size - (uintptr_t)sizeof(int32_t)),
                                &i, sizeof(int32_t));
                     }
                 }
@@ -670,7 +670,7 @@ std_write(
 
 
     entry_offset = (offset +
-                    sizeof(int32_t) * (size_t)std->header->nb_objects);
+                    sizeof(int32_t) * (uint32_t)std->header->nb_objects);
 
     i = 0;
     list_for_each(&std->entries, entry) {
