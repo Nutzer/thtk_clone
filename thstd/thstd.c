@@ -109,7 +109,6 @@ std_read_file(
     std->header_06 = (std_header_06_t*)map;
     std->header_10 = (std_header_10_t*)map;
     std->instance_count = 0;
-    size_t instance_count;
 
     if (option_version == 0)
         offsets = (uint32_t*)(map_base + sizeof(std_header_06_t));
@@ -159,7 +158,7 @@ std_read_file(
     }
     else
         instr = (std_instr_t*)(map_base + std->header_10->script_offset);
-    int x = 0;
+
     for(;;) {
         if (instr->size == 0xFFFF)
             break;
@@ -190,7 +189,6 @@ std_dump(
         option_version == 0 ? formats_v0 :
                               formats_v1;
 
-    size_t i;
     uint16_t object_id;
     uint32_t time;
 
@@ -290,7 +288,7 @@ std_dump(
         }
 
         free(values);
-        fprintf(stream, ");\n", instr->type);
+        fprintf(stream, ");\n");
     }
 }
 
@@ -394,14 +392,14 @@ std_create(
             snprintf(std->header_10->anm_name, 128, name);
         } else if ( option_version == 0 &&
                     util_strcmp_ref(line, stringref("Std_unknown: ")) == 0) {
-            if (1 != sscanf(line, "Std_unknown: %i", &std->header_06->unknown)) {
+            if (1 != sscanf(line, "Std_unknown: %u", &std->header_06->unknown)) {
                 fprintf(stderr, "%s: Script parsing failed for %s\n",
                         argv0, line);
                 exit(1);
             }
         } else if ( option_version == 1 &&
                     util_strcmp_ref(line, stringref("Std_unknown: ")) == 0) {
-            if (1 != sscanf(line, "Std_unknown: %i", &std->header_10->unknown)) {
+            if (1 != sscanf(line, "Std_unknown: %u", &std->header_10->unknown)) {
                 fprintf(stderr, "%s: Script parsing failed for %s\n",
                         argv0, line);
                 exit(1);
@@ -494,7 +492,7 @@ std_create(
         } else if (util_strcmp_ref(line, stringref("FACE: ")) == 0) {
             instance = malloc(sizeof(*instance));
             instance->object_id = object_id;
-            if (4 != sscanf(line, "FACE: %i %g %g %g",
+            if (4 != sscanf(line, "FACE: %hu %g %g %g",
                             &instance->unknown1, &instance->x,
                             &instance->y, &instance->z)) {
                 fprintf(stderr, "%s: Script parsing failed for %s\n",
@@ -517,7 +515,7 @@ std_create(
                 exit(1);
             }
             *after = ' ';
-            if ( 1 != sscanf(before, "%hi", &instr->type)) {
+            if ( 1 != sscanf(before, "%hu", &instr->type)) {
                 fprintf(stderr, "%s: Script parsing failed for %s\n",
                         argv0, line);
                 exit(1);
@@ -538,15 +536,15 @@ std_create(
                 if (after == before) {
                     break;
                 } else {
-                    instr->size = instr->size + sizeof(int32_t);
+                    instr->size = instr->size + (uint16_t)sizeof(int32_t);
                     instr = realloc(instr, instr->size);
                     if (*after == 'f' || *after == '.') {
                         f = strtof(before, &after);
-                        memcpy((void*)(int64_t)instr + instr->size - sizeof(float),
+                        memcpy((void*)(uint64_t)(instr + instr->size - (uint64_t)sizeof(float)),
                                &f, sizeof(float));
                         ++after;
                     } else {
-                        memcpy((void*)(int64_t)instr + instr->size - sizeof(int32_t),
+                        memcpy((void*)((uint64_t)instr + instr->size - (uint64_t)sizeof(int32_t)),
                                &i, sizeof(int32_t));
                     }
                 }
@@ -560,23 +558,23 @@ std_create(
         } else {
             if (object_id >= 0) {
                 if (set_object) {
-                    sscanf(line, "Unknown: %i", &entry->header->unknown);
+                    sscanf(line, "Unknown: %hu", &entry->header->unknown);
                     sscanf(line, "Position: %g %g %g",
                            &entry->header->x, &entry->header->y, &entry->header->z);
                     sscanf(line, "Depth: %g", &entry->header->depth);
                     sscanf(line, "Width: %g", &entry->header->width);
                     sscanf(line, "Height: %g", &entry->header->height);
                 } else  {
-                    sscanf(line, "Type: %i", &quad->unknown);
-                    sscanf(line, "Script_index: %i", &quad->script_index);
+                    sscanf(line, "Type: %hu", &quad->unknown);
+                    sscanf(line, "Script_index: %hu", &quad->script_index);
                     sscanf(line, "Position: %g %g %g",
                            &quad->x, &quad->y, &quad->z);
-                    sscanf(line, "Padding: %g", &quad->_padding);
+                    sscanf(line, "Padding: %hu", &quad->_padding);
                     sscanf(line, "Width: %g", &quad->width);
                     sscanf(line, "Height: %g", &quad->height);
                 }
             }
-            sscanf(line, "%i", &instr_time);
+            sscanf(line, "%u", &instr_time);
         }
     }
     fclose(f);
@@ -641,7 +639,7 @@ std_write(
 
 
     entry_offset = (offset +
-                    sizeof(int32_t) * std->header->nb_objects);
+                    sizeof(int32_t) * (size_t)std->header->nb_objects);
 
     i = 0;
     list_for_each(&std->entries, entry) {
