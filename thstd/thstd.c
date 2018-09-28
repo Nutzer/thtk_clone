@@ -415,7 +415,7 @@ std_create(
             memmove(line, line+1, 4095);
         }
 
-        if (option_version == 1 &&
+        if (option_version >= 1 &&
             util_strcmp_ref(line, stringref("ANM: ")) == 0) {
             size_t offset = stringref("ANM: ").len;
             char *name = filename_cut(line + offset, sizeof(line) - offset);
