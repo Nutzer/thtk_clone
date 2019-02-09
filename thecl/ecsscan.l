@@ -62,6 +62,7 @@
     }
 %x COMMENT CSTRING STRING
 %%
+"#"        return PREPROC;
 ","        return COMMA;
 ":"        return COLON;
 ";"        return SEMICOLON;

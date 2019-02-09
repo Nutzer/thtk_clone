@@ -137,6 +137,7 @@ void set_time(parser_state_t* state, int new_time);
 %token <integer> INTEGER "integer"
 %token <floating> FLOATING "float"
 %token <string> RANK "rank"
+%token PREPROC "#"
 %token COMMA ","
 %token COLON ":"
 %token SEMICOLON ";"
@@ -308,6 +309,7 @@ Statement:
 
         free($2);
       }
+    | "#" IDENTIFIER Text { /* Ignore */ }
     ;
 
 Integer_List:

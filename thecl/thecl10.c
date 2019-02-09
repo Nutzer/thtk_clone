@@ -1753,6 +1753,75 @@ th10_instr_size(
     return ret;
 }
 
+typedef struct YYLTYPE YYLTYPE;
+struct YYLTYPE
+{
+  int first_line;
+  int first_column;
+  int last_line;
+  int last_column;
+};
+extern YYLTYPE yylloc;
+
+static void th10_parse_file(
+  FILE *in,
+  parser_state_t *state
+  ) {
+
+    /* Search for #include */
+    fseek(in, 0, SEEK_END);
+    int file_size = ftell(in);
+    char *file = malloc(file_size);
+    fseek(in, 0, SEEK_SET);
+    fread(file, 1, file_size, in);
+    fseek(in, 0, SEEK_SET);
+
+    for(int i = 0; i < file_size; i++) {
+        if(strncmp(file+i, "#include", 8) == 0) {
+            while(file[++i] != '"') {
+                if(i >= file_size) {
+                    fprintf(stderr, "include out-of-file-range");
+                    exit(1);
+                }
+            }
+            char result[256];
+            memset(result, 0, 256);
+            char *rpos = result;
+            while(file[++i] != '"') {
+                if(i >= file_size || (uintptr_t)result >= (uintptr_t)result+256) {
+                    fprintf(stderr, "include out-of-file-range");
+                    exit(1);
+                }
+                *rpos++ = file[i];
+            }
+            FILE *inc = fopen(result, "rb");
+            if(!inc) {
+                fprintf(stderr, "couldn't open %s for writing\n", result);
+                fclose(inc);
+                exit(1);
+            }
+            th10_parse_file(inc, state);
+            fclose(inc);
+        }
+    }
+
+    free(file);
+
+    /* Reset parser state */
+    yylloc.first_line = 1;
+    yylloc.last_line = 1;
+    yylloc.first_column = 1;
+    yylloc.last_column = 1;
+
+    /* Parse */
+    yyin = in;
+
+    if(yyparse(state) != 0) {
+        exit(1);
+    }
+
+}
+
 static thecl_t*
 th10_parse(
     FILE* in,
@@ -1773,10 +1842,7 @@ th10_parse(
     state.instr_format = th10_find_format;
     state.instr_size = th10_instr_size;
 
-    yyin = in;
-
-    if (yyparse(&state) != 0)
-        return 0;
+    th10_parse_file(in, &state);
 
     return state.ecl;
 }
