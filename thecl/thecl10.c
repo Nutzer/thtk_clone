@@ -184,6 +184,7 @@ static const id_format_pair_t th10_fmts[] = {
     { 59, "" },
     { 60, "" },
     { 61, "" },
+    { 62, "" },
     { 63, "" },
     { 64, "" },
     { 65, "" },
@@ -971,6 +972,8 @@ static const id_format_pair_t th16_fmts[] = {
 };
 
 static const id_format_pair_t th165_fmts[] = {
+    { 1000, "" },
+    { 1001, "" },
     { 1002, "f" },
     { 1005, "S" },
     { 1006, "f" },
@@ -980,6 +983,7 @@ static const id_format_pair_t th165_fmts[] = {
     { 1010, "f" },
     { 1011, "S" },
     { 1012, "S" },
+    { 1013, "" },
     { 1014, "S" },
     { -1, NULL }
 };
@@ -1204,11 +1208,16 @@ th10_open(
             new_instr->offset = (ptrdiff_t)instr - (ptrdiff_t)raw_sub;
             list_init(&new_instr->params);
 
-            if (instr->size > sizeof(th10_instr_t)) {
-                uint32_t param_mask = instr->param_mask;
-                const char* format = th10_find_format(version, instr->id);
-                /* TODO: Handle format == NULL. */
+            uint32_t param_mask = instr->param_mask;
+            const char* format = th10_find_format(version, instr->id);
+            /* TODO: Handle format == NULL. */
+            size_t param_size_total = instr->size - sizeof(th10_instr_t);
+            if (format == NULL) {
+                fprintf(stderr, "%s: (total parameter size is %zu)\n",
+                    argv0, param_size_total);
+            }
 
+            if (param_size_total > 0) {
                 value_t* values = value_list_from_data(th10_value_from_data, instr->data, instr->size - sizeof(th10_instr_t), format);
                 if (!values)
                     return NULL;

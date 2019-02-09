@@ -605,6 +605,7 @@ anm_dump(
     FILE* stream,
     const anm_archive_t* anm)
 {
+    unsigned int entry_num = 0;
     anm_entry_t* entry;
 
     list_for_each(&anm->entries, entry) {
@@ -627,7 +628,7 @@ anm_dump(
             abort();
         }
 
-        fprintf(stream, "ENTRY %u\n", entry->header->version);
+        fprintf(stream, "ENTRY #%u, VERSION %u\n", entry_num++, entry->header->version);
         fprintf(stream, "Name: %s\n", entry->name);
         if (entry->name2)
             fprintf(stream, "Name2: %s\n", entry->name2);
@@ -673,6 +674,7 @@ anm_dump(
 
             fprintf(stream, "Script: %d\n", script->offset->id);
 
+            unsigned int instr_num = 0;
             anm_instr_t* instr;
             list_for_each(&script->instrs, instr) {
                 const char* format = find_format(formats, instr->type);
@@ -682,8 +684,8 @@ anm_dump(
                     abort();
                 }
 
-                fprintf(stream, "Instruction: %hu %hu %hu",
-                    instr->time, instr->param_mask, instr->type);
+                fprintf(stream, "Instruction #%u: %hd %hu %hu",
+                    instr_num++, instr->time, instr->param_mask, instr->type);
 
                 if (instr->length > sizeof(anm_instr_t)) {
                     value_t* values;
@@ -951,7 +953,13 @@ anm_create(
             list_init(&entry->scripts);
             entry->data = NULL;
             list_append_new(&anm->entries, entry);
-            sscanf(line, "ENTRY %u", &entry->header->version);
+
+            if(sscanf(line, "ENTRY %u", &entry->header->version) > 0) {
+                ERROR("warning: No entry number detected. This spec was written by thanm <= 10; re-dump it after ANM creation to remove this warning");
+            } else {
+                unsigned int temp;
+                sscanf(line, "ENTRY #%u, VERSION %u", &temp, &entry->header->version);
+            }
         } else if (util_strcmp_ref(line, stringref("Name: ")) == 0) {
             size_t offset = stringref("Name: ").len;
             char *name = filename_cut(line + offset, sizeof(line) - offset);
@@ -979,15 +987,22 @@ anm_create(
                 ERROR("Script parsing failed for %s", line);
                 exit(1);
             }
-        } else if (util_strcmp_ref(line, stringref("Instruction: ")) == 0) {
-            char* tmp = line + stringref("Instruction: ").len;
+        } else if (util_strcmp_ref(line, stringref("Instruction")) == 0) {
+            char* tmp = line + stringref("Instruction").len;
             char* before;
             char* after = NULL;
+
+            tmp = strchr(tmp, ':');
+            if (!tmp) {
+                ERROR("Instruction parsing failed for %s", line);
+                exit(1);
+            }
+            tmp++;
 
             instr = malloc(sizeof(*instr));
 
             instr->length = 0;
-            instr->time = strtol(tmp, &tmp, 10);
+            instr->time = (int16_t)strtol(tmp, &tmp, 10);
             instr->param_mask = strtol(tmp, &tmp, 10);
             instr->type = strtol(tmp, &tmp, 10);
 
@@ -1053,7 +1068,6 @@ anm_create(
         linenum++;
     }
 
-#undef SCAN_OLD
 #undef SCAN_DEPRECATED
 #undef ERROR
 
