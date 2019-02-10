@@ -128,6 +128,11 @@ typedef struct {
     unsigned char data[];
 } thecl_local_data_t;
 
+typedef struct {
+    thecl_param_t *param;
+    char name[256];
+} global_definition_t;
+
 /* TODO: Local data deletion and creation functions. */
 
 typedef struct {
@@ -167,6 +172,7 @@ typedef struct {
     bool has_overdrive_difficulty;
     bool uses_stack_offsets;
     list_t expressions;
+    list_t global_definitions;
     thecl_sub_t* current_sub;
     thecl_t* ecl;
     const char* (*instr_format)(unsigned int version, unsigned int id);

@@ -82,6 +82,7 @@
 "goto"     return GOTO;
 "unless"   return UNLESS;
 "if"       return IF;
+"global"   return GLOBAL;
 "="        return ASSIGN;
 "+"        return ADD;
 "-"        return SUBTRACT;
