@@ -69,6 +69,11 @@ typedef struct expression_t {
     int result_type;
 } expression_t;
 
+typedef struct {
+  expression_t *expr;
+  char labelstr[250];
+} switch_case_t;
+
 static int parse_rank(const parser_state_t* state, const char* value);
 
 static expression_t* expression_load_new(const parser_state_t* state, thecl_param_t* value);
@@ -76,6 +81,7 @@ static expression_t* expression_operation_new(const parser_state_t* state, const
 static expression_t* expression_address_operation_new(const parser_state_t* state, const int* symbols, thecl_param_t* value);
 static void expression_output(parser_state_t* state, expression_t* expr);
 static void expression_free(expression_t* expr);
+static expression_t *expression_copy(expression_t *expr);
 #define EXPR_22(a, b, A, B) \
     expression_operation_new(state, (int[]){ a, b, 0 }, (expression_t*[]){ A, B, NULL })
 #define EXPR_12(a, A, B) \
@@ -86,6 +92,9 @@ static void expression_free(expression_t* expr);
     expression_address_operation_new(state, (int[]){ a, 0 }, A)
 #define EXPR_1B(a, b, A) \
     expression_operation_new(state, (int[]){ a, b, 0 }, (expression_t*[]){ A, NULL })
+
+/* Block things. */
+static void block_create_goto(parser_state_t *state, int type, char *labelstr);
 
 /* Bison things. */
 void yyerror(parser_state_t*, const char*);
@@ -166,6 +175,12 @@ void set_time(parser_state_t* state, int new_time);
 %token UNLESS "unless"
 %token IF "if"
 %token GLOBAL "global"
+%token ELSE "else"
+%token WHILE "while"
+%token SWITCH "switch"
+%token CASE "case"
+%token BREAK "break"
+%token DO "do"
 %token LOAD
 %token LOADI
 %token LOADF
@@ -385,13 +400,188 @@ Text_Semicolon_List:
 
 Instructions:
       Instruction ";"
+    | IfBlock
+    | WhileBlock
+    | SwitchBlock
     | INTEGER ":" { set_time(state, $1); }
+    | IDENTIFIER ":" { label_create(state, $1); free($1); }
     | Instructions INTEGER ":" { set_time(state, $2); }
     | Instructions IDENTIFIER ":" { label_create(state, $2); free($2); }
     | Instructions Instruction ";"
     | RANK { state->instr_rank = parse_rank(state, $1); } Instruction ";"
+    | Instructions IfBlock
+    | Instructions SwitchBlock
+    | Instructions WhileBlock
     | Instructions RANK { state->instr_rank = parse_rank(state, $2); } Instruction ";"
     ;
+
+SwitchBlock:
+    "switch" Expression {
+        list_prepend_new(&state->block_stack, NULL);
+        char labelstr[256];
+        snprintf(labelstr, 256, "switch_%i_%i", yylloc.first_line, yylloc.first_column);
+        list_prepend_new(&state->block_stack, strdup(labelstr));
+        block_create_goto(state, GOTO, labelstr);
+    } "{" CaseList "}" {
+        list_node_t *head = state->block_stack.head;
+
+        char labelstr[256];
+        snprintf(labelstr, 256, "%s_end", head->data);
+        block_create_goto(state, GOTO, labelstr);
+
+        label_create(state, head->data);
+
+        state->block_stack.head = head->next;
+        list_node_t *node = state->block_stack.head;
+        while(node->data != NULL) {
+            switch_case_t *switch_case = node->data;
+            expression_output(state, switch_case->expr);
+            expression_output(state, expression_copy($2));
+            instr_add(state->current_sub, instr_new(state, 59, ""));
+            expression_free(switch_case->expr);
+            block_create_goto(state, IF, switch_case->labelstr);
+            list_node_t *buf = node;
+            node = node->next;
+            free(buf->data);
+            free(buf);
+        }
+        state->block_stack.head = node->next;
+        free(node);
+
+        label_create(state, labelstr);
+        expression_free($2);
+
+        free(head->data);
+        free(head);
+    }
+
+CaseList:
+    | Case
+    | CaseList Case
+
+Case:
+    | "case" Expression ":" {
+        switch_case_t *switch_case = malloc(sizeof(switch_case_t));
+        switch_case->expr = $2;
+        snprintf(switch_case->labelstr, 250, "case_%i_%i", yylloc.first_line, yylloc.first_column);
+        label_create(state, switch_case->labelstr);
+        list_node_t *node = list_node_new();
+        node->data = switch_case;
+        list_node_t *head = state->block_stack.head;
+        node->next = head->next;
+        head->next->prev = node;
+        node->prev = head;
+        head->next = node;
+        state->block_stack.head->next = node;
+    }
+    | Case Instructions
+    | Case "break" ";" {
+        list_node_t *head = state->block_stack.head;
+        char labelstr[256];
+        snprintf(labelstr, 256, "%s_end", head->data);
+        block_create_goto(state, GOTO, labelstr);
+    }
+
+WhileBlock:
+    "while" Expression {
+        char labelstr_st[256];
+        char labelstr_end[256];
+        snprintf(labelstr_st, 256, "while_%i_%i_st", yylloc.first_line, yylloc.first_column);
+        snprintf(labelstr_end, 256, "while_%i_%i_end", yylloc.first_line, yylloc.first_column);
+        list_prepend_new(&state->block_stack, strdup(labelstr_end));
+        list_prepend_new(&state->block_stack, strdup(labelstr_st));
+        label_create(state, labelstr_st);
+        const expr_t* expr = expr_get_by_symbol(state->version, UNLESS);
+        expression_output(state, $2);
+        expression_free($2);
+        block_create_goto(state, UNLESS, labelstr_end);
+    } "{" Instructions "}" {
+        list_node_t *head = state->block_stack.head;
+        block_create_goto(state, GOTO, head->data);
+        state->block_stack.head = head->next;
+        free(head->data);
+        free(head);
+        head = state->block_stack.head;
+        label_create(state, head->data);
+        state->block_stack.head = head->next;
+        free(head->data);
+        free(head);
+    }
+    | "do"  {
+        char labelstr_st[256];
+        char labelstr_end[256];
+        snprintf(labelstr_st, 256, "while_%i_%i_st", yylloc.first_line, yylloc.first_column);
+        list_prepend_new(&state->block_stack, strdup(labelstr_st));
+
+        label_create(state, labelstr_st);
+    } "{" Instructions "}" "while" Expression  {
+        list_node_t *head = state->block_stack.head;
+        const expr_t* expr = expr_get_by_symbol(state->version, UNLESS);
+        expression_output(state, $7);
+        expression_free($7);
+        block_create_goto(state, IF, head->data);
+
+        state->block_stack.head = head->next;
+        free(head->data);
+        free(head);
+    } ";"
+
+IfBlock:
+    "unless" Expression {
+        char labelstr[256];
+        snprintf(labelstr, 256, "unless_%i_%i", yylloc.first_line, yylloc.first_column);
+        list_prepend_new(&state->block_stack, strdup(labelstr));
+        const expr_t* expr = expr_get_by_symbol(state->version, UNLESS);
+        expression_output(state, $2);
+        expression_free($2);
+        block_create_goto(state, IF, labelstr);
+      } "{" Instructions "}" {
+          list_node_t *head = state->block_stack.head;
+          label_create(state, head->data);
+          state->block_stack.head = head->next;
+          free(head->data);
+          free(head);
+        }
+    | "if" Expression {
+          char labelstr[256];
+          snprintf(labelstr, 256, "if_%i_%i", yylloc.first_line, yylloc.first_column);
+          list_prepend_new(&state->block_stack, strdup(labelstr));
+          const expr_t* expr = expr_get_by_symbol(state->version, IF);
+          expression_output(state, $2);
+          expression_free($2);
+          block_create_goto(state, UNLESS, labelstr);
+      } "{" Instructions "}" ElseBlock {
+          list_node_t *head = state->block_stack.head;
+          label_create(state, head->data);
+          state->block_stack.head = head->next;
+          free(head->data);
+          free(head);
+      }
+
+ElseBlock:
+    | "else"  {
+          char labelstr[256];
+          snprintf(labelstr, 256, "if_%i_%i", yylloc.first_line, yylloc.first_column);
+          block_create_goto(state, GOTO, labelstr);
+          list_node_t *head = state->block_stack.head;
+          label_create(state, head->data);
+          state->block_stack.head = head->next;
+          free(head->data);
+          free(head);
+          list_prepend_new(&state->block_stack, strdup(labelstr));
+      } "{" Instructions "}"
+      | "else" {
+          char labelstr[256];
+          snprintf(labelstr, 256, "if_%i_%i", yylloc.first_line, yylloc.first_column);
+          block_create_goto(state, GOTO, labelstr);
+          list_node_t *head = state->block_stack.head;
+          label_create(state, head->data);
+          state->block_stack.head = head->next;
+          free(head->data);
+          free(head);
+          list_prepend_new(&state->block_stack, strdup(labelstr));
+      } IfBlock
+
 
     /* TODO: Check the given parameters against the parameters expected for the
      *       instruction. */
@@ -928,6 +1118,22 @@ expression_operation_new(
 }
 
 static void
+block_create_goto(
+  parser_state_t *state,
+  int type,
+  char *labelstr)
+{
+  const expr_t* expr = expr_get_by_symbol(state->version, type);
+  thecl_param_t *p1 = param_new('o');
+  thecl_param_t *p2 = param_new('S');
+  p1->value.type = 'z';
+  p1->value.val.z = strdup(labelstr);
+  p2->value.type = 'S';
+  p2->value.val.S = state->instr_time;
+  instr_add(state->current_sub, instr_new(state, expr->id, "pp", p1, p2));
+}
+
+static void
 expression_output(
     parser_state_t* state,
     expression_t* expr)
@@ -955,6 +1161,25 @@ expression_free(
         list_free_nodes(&expr->children);
     }
     free(expr);
+}
+
+static expression_t *
+expression_copy(
+  expression_t *expr)
+{
+  expression_t *copy = malloc(sizeof(expression_t));
+  memcpy(copy, expr, sizeof(expression_t));
+  expression_t* child_expr;
+  list_init(&copy->children);
+  if (expr->type == EXPRESSION_OP) {
+    list_for_each(&expr->children, child_expr)
+      list_append_new(&copy->children, expression_copy(child_expr));
+  } else if(expr->type == EXPRESSION_VAL) {
+    thecl_param_t *param = malloc(sizeof(thecl_param_t));
+    memcpy(param, expr->value, sizeof(thecl_param_t));
+    copy->value = param;
+  }
+  return copy;
 }
 
 static void

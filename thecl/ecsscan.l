@@ -83,6 +83,12 @@
 "unless"   return UNLESS;
 "if"       return IF;
 "global"   return GLOBAL;
+"else"     return ELSE;
+"while"    return WHILE;
+"switch"   return SWITCH;
+"case"     return CASE;
+"break"    return BREAK;
+"do"       return DO;
 "="        return ASSIGN;
 "+"        return ADD;
 "-"        return SUBTRACT;
