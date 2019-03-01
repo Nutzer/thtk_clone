@@ -33,6 +33,9 @@
 #include <anm_types.h>
 #include "list.h"
 
+/* XXX: This should be part of thtypes */
+#define FORMAT_PNG (11) /* (Not actually part of anm) */
+
 extern unsigned int option_force;
 
 typedef struct {

@@ -519,7 +519,7 @@ anm_read_file(
 
         list_init(&entry->scripts);
         if (header->scripts) {
-            anm_offset_t* script_offsets = 
+            anm_offset_t* script_offsets =
                 (anm_offset_t*)(map + sizeof(*header) + header->sprites * sizeof(uint32_t));
             for (uint32_t s = 0; s < header->scripts; ++s) {
                 anm_script_t* script = malloc(sizeof(*script));
@@ -753,7 +753,8 @@ anm_replace(
         FORMAT_BGRA8888,
         FORMAT_RGB565,
         FORMAT_ARGB4444,
-        FORMAT_GRAY8
+        FORMAT_GRAY8,
+        FORMAT_PNG
     };
     unsigned int f;
     unsigned int width = 0;
@@ -786,25 +787,53 @@ anm_replace(
                 entry->header->hasdata) {
                 unsigned int y;
 
-                unsigned char* converted_data = format_from_rgba((uint32_t*)image->data, width * height, formats[f]);
+                if(formats[f] != FORMAT_PNG) {
+                    unsigned char* converted_data = format_from_rgba((uint32_t*)image->data, width * height, formats[f]);
 
-                if (anmfp) {
-                    for (y = entry->header->y; y < entry->header->y + entry->thtx->h; ++y) {
-                        if (!file_seek(anmfp,
-                            offset + entry->header->thtxoffset + sizeof(thtx_header_t) + (y - entry->header->y) * entry->thtx->w * format_Bpp(formats[f])))
-                            exit(1);
-                        if (!file_write(anmfp, converted_data + y * width * format_Bpp(formats[f]) + entry->header->x * format_Bpp(formats[f]), entry->thtx->w * format_Bpp(formats[f])))
-                            exit(1);
+                    if (anmfp) {
+                      for (y = entry->header->y; y < entry->header->y + entry->thtx->h; ++y) {
+                          if (!file_seek(anmfp,
+                                        offset + entry->header->thtxoffset + sizeof(thtx_header_t) + (y - entry->header->y) * entry->thtx->w * format_Bpp(formats[f])))
+                              exit(1);
+                          if (!file_write(anmfp, converted_data + y * width * format_Bpp(formats[f]) + entry->header->x * format_Bpp(formats[f]), entry->thtx->w * format_Bpp(formats[f])))
+                              exit(1);
+                      }
+                    } else {
+                      for (y = entry->header->y; y < entry->header->y + entry->thtx->h; ++y) {
+                          memcpy(entry->data + (y - entry->header->y) * entry->thtx->w * format_Bpp(formats[f]),
+                                converted_data + y * width * format_Bpp(formats[f]) + entry->header->x * format_Bpp(formats[f]),
+                                entry->thtx->w * format_Bpp(formats[f]));
+                      }
                     }
+
+                    free(converted_data);
                 } else {
-                    for (y = entry->header->y; y < entry->header->y + entry->thtx->h; ++y) {
-                        memcpy(entry->data + (y - entry->header->y) * entry->thtx->w * format_Bpp(formats[f]),
-                               converted_data + y * width * format_Bpp(formats[f]) + entry->header->x * format_Bpp(formats[f]),
-                               entry->thtx->w * format_Bpp(formats[f]));
+                    FILE *f = fopen(filename, "r");
+                    if(!f) {
+                        fprintf(stderr,
+                                "%s:%s:%s: could not open %s\n",
+                                argv0, current_input, name, filename);
+                        exit(1);
+                    }
+
+                    /* XXX: Force size to png size */
+                    fseek(f, 0, SEEK_END);
+                    entry->thtx->size = ftell(f);
+                    fseek(f, 0, SEEK_SET);
+
+                    char *map = malloc(entry->thtx->size);
+                    fread(map, entry->thtx->size, 1, f);
+                    fclose(f);
+
+                    if (anmfp) {
+                        if (!file_seek(anmfp, offset + entry->header->thtxoffset + sizeof(thtx_header_t)))
+                            exit(1);
+                        if (!file_write(anmfp, map, entry->thtx->size))
+                            exit(1);
+                    } else {
+                        memcpy(entry->data, map, entry->thtx->size);
                     }
                 }
-
-                free(converted_data);
             }
 
             offset += entry->header->nextoffset;
@@ -1288,6 +1317,7 @@ print_usage(void)
 #endif
     printf("  -V                    display version information and exit\n"
            "  -f                    ignore errors when possible\n"
+           "  -p                    force png (format 11) on all formats\n"
            "Report bugs to <" PACKAGE_BUGREPORT ">.\n");
 }
 
@@ -1300,8 +1330,9 @@ main(
 #ifdef HAVE_LIBPNG
                             "xrc"
 #endif
-                            "Vf";
+                            "Vfp";
     int command = -1;
+    int force_png = 0;
 
     FILE* in;
 
@@ -1333,6 +1364,9 @@ main(
         case 'f':
             option_force = 1;
             break;
+        case 'p':
+          force_png = 1;
+          break;
         default:
             util_getopt_default(&ind,argv,opt,print_usage);
         }
@@ -1466,6 +1500,9 @@ replace_done:
         /* Allocate enough space for the THTX data. */
         list_for_each(&anm->entries, entry) {
             if (entry->header->hasdata) {
+                if(force_png) {
+                    entry->thtx->format = FORMAT_PNG;
+                }
                 /* XXX: There are a few entries with a thtx.size greater than
                  *      w*h*Bpp.  The extra data appears to be all zeroes. */
                 entry->data = calloc(1, entry->thtx->size);

@@ -68,7 +68,10 @@ format_from_rgba(
     unsigned int i;
     unsigned char* out = NULL;
 
-    if (format == FORMAT_GRAY8) {
+    if (format == FORMAT_PNG) {
+      out = malloc(pixels);
+      memcpy(out, data, pixels);
+    } else if (format == FORMAT_GRAY8) {
         out = malloc(pixels);
         for (i = 0; i < pixels; ++i) {
             out[i] = data[i] & 0xff;
