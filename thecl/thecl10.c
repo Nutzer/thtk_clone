@@ -155,6 +155,8 @@ th10_param_to_text(
 #define RANK_HARD    (1 << 2)
 #define RANK_LUNATIC (1 << 3)
 
+list_t *custom_fmts = NULL;
+
 static const id_format_pair_t th10_fmts[] = {
     { 0, "" },
     { 1, "" },
@@ -640,6 +642,9 @@ static const id_format_pair_t th125_fmts[] = {
     { 604, "SSf" },
     { 609, "Sf" },
     { 612, "ff" },
+
+
+
     { -1, NULL }
 };
 
@@ -1001,6 +1006,15 @@ th10_find_format(
     unsigned int id)
 {
     const char* ret = NULL;
+
+    id_format_pair_t *fmt;
+    if(custom_fmts)
+        list_for_each(custom_fmts, fmt) {
+              if(fmt->id == id) {
+                    ret = fmt->format;
+                    break;
+              }
+        }
 
     switch (version) {
     /* Intentional fallthroughs, obviously */
@@ -1768,7 +1782,7 @@ static void th10_parse_file(
   parser_state_t *state
   ) {
 
-    /* Search for #include */
+    /* Search for #-commands */
     fseek(in, 0, SEEK_END);
     int file_size = ftell(in);
     char *file = malloc(file_size);
@@ -1777,24 +1791,36 @@ static void th10_parse_file(
     fseek(in, 0, SEEK_SET);
 
     for(int i = 0; i < file_size; i++) {
+        /* instr: add custom instruction */
+        if(strncmp(file+i, "#instr", 4) == 0) {
+            char *result = eclarg_get_str(file, i, file_size);
+            id_format_pair_t *fmt = malloc(sizeof(id_format_pair_t));
+            fmt->format = malloc(255);
+            strcpy(fmt->format, "");
+            if(2 < sscanf(result, "%i %s", &fmt->id, (char*)fmt->format)) {
+              fprintf(stderr, "%s: malformed instruction %s\n",
+                      argv0, result);
+              exit(1);
+            }
+            list_append_new(custom_fmts, fmt);
+        }
+        /* map: add map */
+        if(strncmp(file+i, "#map", 4) == 0) {
+            char *result = eclarg_get_str(file, i, file_size);
+            FILE *map_file = eclarg_get_file(g_eclarg_includes, result, "r");
+            if (!map_file) {
+                fprintf(stderr, "%s: couldn't open %s for reading\n",
+                        argv0, result);
+                exit(1);
+            }
+            eclmap_load(g_eclmap_opcode, g_eclmap_global, map_file, result);
+            fclose(map_file);
+        }
+
+        /* include: include file */
         if(strncmp(file+i, "#include", 8) == 0) {
-            while(file[++i] != '"') {
-                if(i >= file_size) {
-                    fprintf(stderr, "include out-of-file-range");
-                    exit(1);
-                }
-            }
-            char result[256];
-            memset(result, 0, 256);
-            char *rpos = result;
-            while(file[++i] != '"') {
-                if(i >= file_size || (uintptr_t)result >= (uintptr_t)result+256) {
-                    fprintf(stderr, "include out-of-file-range");
-                    exit(1);
-                }
-                *rpos++ = file[i];
-            }
-            FILE *inc = fopen(result, "rb");
+            char *result = eclarg_get_str(file, i, file_size);
+            FILE *inc = eclarg_get_file(g_eclarg_includes, result, "rb");
             if(!inc) {
                 fprintf(stderr, "couldn't open %s for writing\n", result);
                 fclose(inc);

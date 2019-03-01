@@ -41,6 +41,7 @@ extern const thecl_module_t th10_ecl;
 
 eclmap_t* g_eclmap_opcode = NULL;
 eclmap_t* g_eclmap_global = NULL;
+eclarg_includes_t* g_eclarg_includes;
 bool g_ecl_rawoutput = false;
 
 thecl_t*
@@ -166,10 +167,11 @@ param_free(
 }
 
 static void
-free_eclmaps(void)
+free_maps(void)
 {
     eclmap_free(g_eclmap_opcode);
     eclmap_free(g_eclmap_global);
+    eclarg_includes_free(g_eclarg_includes);
 }
 
 static void
@@ -181,6 +183,7 @@ print_usage(void)
            "  -d  dump ECL file\n"
            "  -V  display version information and exit\n"
            "  -m  use map file for translating mnemonics\n"
+           "  -I  use include directory for ecl args\n"
            "  -r  output raw ECL opcodes, applying minimal transformations\n"
            "VERSION can be:\n"
            "  6, 7, 8, 9, 95, 10, 103 (for Uwabami Breakers), 11, 12, 125, 128, 13, 14, 143, 15, 16, or 165\n"
@@ -201,13 +204,14 @@ main(int argc, char* argv[])
 
     g_eclmap_opcode = eclmap_new();
     g_eclmap_global = eclmap_new();
-    atexit(free_eclmaps);
+    g_eclarg_includes = eclarg_includes_new();
+    atexit(free_maps);
 
     argv0 = util_shortname(argv[0]);
     int opt;
     int ind=0;
     while(argv[util_optind]) {
-        switch(opt = util_getopt(argc, argv, ":c:d:Vm:r")) {
+        switch(opt = util_getopt(argc, argv, ":c:d:Vm:I:r")) {
         case 'c':
         case 'd':
             if(mode != -1) {
@@ -218,6 +222,9 @@ main(int argc, char* argv[])
             mode = opt;
             version = parse_version(util_optarg);
             break;
+        case 'I':
+          eclarg_add_include(g_eclarg_includes, util_optarg);
+          break;
         case 'm': {
             FILE* map_file = NULL;
             map_file = fopen(util_optarg, "r");
@@ -307,11 +314,23 @@ main(int argc, char* argv[])
 #ifdef WIN32
             _setmode(fileno(stdout), _O_BINARY);
 #endif
+            custom_fmts = list_new();
+
             thecl_t* ecl = module->parse(in, version);
             if (!ecl)
                 exit(1);
             module->compile(ecl, out);
             thecl_free(ecl);
+
+            id_format_pair_t *fmt;
+            list_for_each(custom_fmts, fmt) {
+              free((char*)fmt->format);
+              free(fmt);
+            }
+
+            list_free_nodes(custom_fmts);
+            free(custom_fmts);
+
         } else if (mode == 'd') {
 #ifdef WIN32
             _setmode(fileno(stdin), _O_BINARY);

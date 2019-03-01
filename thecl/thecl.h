@@ -35,6 +35,7 @@
 #include "list.h"
 #include "value.h"
 #include "eclmap.h"
+#include "eclarg.h"
 #include "util.h"
 
 typedef enum {
@@ -187,6 +188,8 @@ extern int yyparse(parser_state_t*);
 
 extern eclmap_t* g_eclmap_opcode;
 extern eclmap_t* g_eclmap_global;
+extern eclarg_includes_t* g_eclarg_includes;
 extern bool g_ecl_rawoutput;
+extern list_t *custom_fmts;
 
 #endif
