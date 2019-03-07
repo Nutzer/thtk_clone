@@ -78,6 +78,7 @@ value_from_data(
     case 'U':
         READ(U, sizeof(uint32_t));
     case 'S':
+    case 'o':
         READ(S, sizeof(int32_t));
     case 'C':
         READ(C, sizeof(int32_t));
@@ -113,7 +114,7 @@ value_list_from_data(
     for (; i < format_length; ++i) {
         char f = format[i];
         int repeat = 0;
-        
+
         if (f == '*') {
             repeat = 1;
             f = format[i + 1];
@@ -194,6 +195,7 @@ value_from_text(
         READ(u, value->val.U);
         break;
     case 'S':
+    case 'o':
         READ(d, value->val.S);
         break;
     case 'z':
@@ -210,6 +212,7 @@ value_from_text(
         fprintf(stderr, "%s:value_from_text: invalid type '%c'\n", argv0, value->type);
         return 0;
     }
+
 
     return 1;
 
@@ -247,6 +250,7 @@ value_to_text(
         snprintf(temp, 256, "%u", value->val.U);
         break;
     case 'S':
+    case 'o':
         snprintf(temp, 256, "%i", value->val.S);
         break;
     case 'z':
