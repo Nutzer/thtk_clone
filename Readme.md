@@ -16,7 +16,69 @@ thmsg c  - - - - - y y  - y y  y  y   -  -  y  y   -   y   y  y  y   y  y  y   y
 thstd d  - - - - - y y  - y y  y  y   -  -  y  y   -   y   y  y  y   y  y  y   y
 thstd c  - - - - - y y  - y y  y  y   -  -  y  y   -   y   y  y  y   y  y  y   y
 ```
-- New Syntax
+# New Syntax
+## Thecl
+
+There are some additions to the ecl format:
+
+- Compiler-directing commands
+```c
+#include "FILE"
+#instr "NR ARGUMENTS" /* Adds instruction to the format. e.g. #instr "1000 SS" */
+#map "FILE" /* Adds definitions from a mnemonic map */
+```
+
+- Global definitions:
+```c
+global[NAME1] = 10;
+global[NAME2] = [-9071];
+global[NAME3] = [1];
+  /* ... */
+  [NAME2] = [NAME1];
+  ins_83([NAME3]);
+  /* ... */
+```
+
+- Easy sub calls:
+```c
+sub test(A) { ins_10(); }
+
+    /* ... */
+    test(10);  /* equivalent to ins_11("test", _SS 10); */
+    test(20.0f) async; /* equivalent to ins_15("test", _ff 20.0f); */
+```
+
+- If/else statements:
+```c
+  if($A == 3) {
+    /* ... */
+  } else if($A == 2) {
+    /* ... */
+  } else { /* ... */ }
+```
+
+- Loops:
+```c
+  while($A--) {
+    /* ... */
+  }
+
+  do {
+    /* ... */
+  } while($A--);
+```
+
+- switch statements:
+```c
+  switch($A) {
+    case 1: /* ... */ break;
+    case 2: /* ... */ break;
+    /* ... */
+  }
+}
+```
+
+## Thanmx
 
 Thanmx uses an alternative anm specification syntax to help with writing anm files from scratch by automatically assigning some information.
 

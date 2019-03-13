@@ -463,7 +463,7 @@ CaseList:
     ;
 
 Case:
-    "case" Expression ":" {
+    "case" Expression ":" Instructions {
         switch_case_t *switch_case = malloc(sizeof(switch_case_t));
         switch_case->expr = $2;
         snprintf(switch_case->labelstr, 250, "case_%i_%i", yylloc.first_line, yylloc.first_column);
@@ -476,9 +476,7 @@ Case:
         node->prev = head;
         head->next = node;
         state->block_stack.head->next = node;
-    }
-    | Case Instructions
-    | Case "break" ";" {
+    } "break" ";" {
         list_node_t *head = state->block_stack.head;
         char labelstr[256];
         snprintf(labelstr, 256, "%s_end", head->data);
