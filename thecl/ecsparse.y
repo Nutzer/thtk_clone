@@ -607,29 +607,30 @@ Instruction:
             list_append_new(param_list, param);
 
             thecl_param_t *iter_param;
-            list_for_each($3, iter_param) {
-                param = param_new('D');
-                param->stack = iter_param->stack;
-                param->is_expression_param = iter_param->is_expression_param;
-                param->value.type = 'm';
-                param->value.val.m.length = 2*sizeof(int32_t);
-                param->value.val.m.data = malloc(2*sizeof(int32_t));
-                int32_t* D = (int32_t*)param->value.val.m.data;
-                switch(iter_param->value.type) {
-                case 'S':
-                    D[0] = 0x6969;
-                    D[1] = iter_param->value.val.S;
-                    break;
-                case 'f':
-                    D[0] = 0x6666;
-                    memcpy(&D[1], &iter_param->value.val.f, sizeof(float));
-                    break;
-                default:
-                    yyerror(state, "invalid sub parameter");
+            if($3 != NULL)
+                list_for_each($3, iter_param) {
+                    param = param_new('D');
+                    param->stack = iter_param->stack;
+                    param->is_expression_param = iter_param->is_expression_param;
+                    param->value.type = 'm';
+                    param->value.val.m.length = 2*sizeof(int32_t);
+                    param->value.val.m.data = malloc(2*sizeof(int32_t));
+                    int32_t* D = (int32_t*)param->value.val.m.data;
+                    switch(iter_param->value.type) {
+                    case 'S':
+                        D[0] = 0x6969;
+                        D[1] = iter_param->value.val.S;
+                        break;
+                    case 'f':
+                        D[0] = 0x6666;
+                        memcpy(&D[1], &iter_param->value.val.f, sizeof(float));
+                        break;
+                    default:
+                        yyerror(state, "invalid sub parameter");
+                    }
+                    param_free(iter_param);
+                    list_append_new(param_list, param);
                 }
-                param_free(iter_param);
-                list_append_new(param_list, param);
-            }
             instr_add(state->current_sub, instr_new_list(state, 15, param_list));
         } else {
             yyerror(state, "unknown sub");
@@ -664,29 +665,30 @@ Instruction:
                 list_append_new(param_list, param);
 
                 thecl_param_t *iter_param;
-                list_for_each($3, iter_param) {
-                    param = param_new('D');
-                    param->stack = iter_param->stack;
-                    param->is_expression_param = iter_param->is_expression_param;
-                    param->value.type = 'm';
-                    param->value.val.m.length = 2*sizeof(int32_t);
-                    param->value.val.m.data = malloc(2*sizeof(int32_t));
-                    int32_t* D = (int32_t*)param->value.val.m.data;
-                    switch(iter_param->value.type) {
-                    case 'S':
-                        D[0] = 0x6969;
-                        D[1] = iter_param->value.val.S;
-                        break;
-                    case 'f':
-                        D[0] = 0x6666;
-                        memcpy(&D[1], &iter_param->value.val.f, sizeof(float));
-                        break;
-                    default:
-                        yyerror(state, "invalid sub parameter");
+                if($3 != NULL)
+                    list_for_each($3, iter_param) {
+                        param = param_new('D');
+                        param->stack = iter_param->stack;
+                        param->is_expression_param = iter_param->is_expression_param;
+                        param->value.type = 'm';
+                        param->value.val.m.length = 2*sizeof(int32_t);
+                        param->value.val.m.data = malloc(2*sizeof(int32_t));
+                        int32_t* D = (int32_t*)param->value.val.m.data;
+                        switch(iter_param->value.type) {
+                        case 'S':
+                            D[0] = 0x6969;
+                            D[1] = iter_param->value.val.S;
+                            break;
+                        case 'f':
+                            D[0] = 0x6666;
+                            memcpy(&D[1], &iter_param->value.val.f, sizeof(float));
+                            break;
+                        default:
+                            yyerror(state, "invalid sub parameter");
+                        }
+                        param_free(iter_param);
+                        list_append_new(param_list, param);
                     }
-                    param_free(iter_param);
-                    list_append_new(param_list, param);
-                }
                 instr_add(state->current_sub, instr_new_list(state, 11, param_list));
             } else {
                 yyerror(state, "unknown mnemonic");
