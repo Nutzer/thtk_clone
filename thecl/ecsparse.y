@@ -459,8 +459,28 @@ SwitchBlock:
 
 CaseList:
     Case
+    | Case Instructions
+    | Case  {} "break" ";" {
+      list_node_t *head = state->block_stack.head;
+      char labelstr[256];
+      snprintf(labelstr, 256, "%s_end", head->data);
+      block_create_goto(state, GOTO, labelstr);
+    }
+    | Case  Instructions {} "break" ";" {
+      list_node_t *head = state->block_stack.head;
+      char labelstr[256];
+      snprintf(labelstr, 256, "%s_end", head->data);
+      block_create_goto(state, GOTO, labelstr);
+    }
     | CaseList Case
+    | CaseList Case Instructions
     | CaseList Case {} "break" ";" {
+      list_node_t *head = state->block_stack.head;
+      char labelstr[256];
+      snprintf(labelstr, 256, "%s_end", head->data);
+      block_create_goto(state, GOTO, labelstr);
+    }
+    | CaseList Case Instructions {} "break" ";" {
       list_node_t *head = state->block_stack.head;
       char labelstr[256];
       snprintf(labelstr, 256, "%s_end", head->data);
@@ -482,7 +502,7 @@ Case:
         node->prev = head;
         head->next = node;
         state->block_stack.head->next = node;
-    } Instructions
+    }
     ;
 
 WhileBlock:
