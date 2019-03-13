@@ -1227,29 +1227,37 @@ main(
                     argv0, argv[0], strerror(errno));
             exit(1);
         }
+        custom_fmts = list_new();
         anm_archive_t *anm = anm_parse(in, version);
 
         /* Allocate enough space for the THTX data. */
         list_for_each(&anm->entries, entry) {
-            if (entry->header->hasdata) {
+            if (entry->header->hasdata && entry->name[0] != '@') {
                 if(force_png) {
                     entry->thtx->format = FORMAT_PNG;
                 }
                 /* XXX: There are a few entries with a thtx.size greater than
                  *      w*h*Bpp.  The extra data appears to be all zeroes. */
                 entry->data = calloc(1, entry->thtx->size);
+            } else {
+              entry->data = NULL;
+              entry->thtx->size = 0;
             }
         }
 
         list_for_each(&anm->names, name) {
+          if (name[0] != '@') {
             printf("inserting %s\n", name);
             anm_replace(anm, NULL, name, name);
+          }
         }
 
         current_output = argv[1];
         anm_write(anm, argv[1]);
 
         anm_free(anm);
+        list_free_nodes(custom_fmts);
+        free(custom_fmts);
 
 #if 0
 
