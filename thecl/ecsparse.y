@@ -455,13 +455,15 @@ SwitchBlock:
         free(head->data);
         free(head);
     }
+    ;
 
 CaseList:
-    | Case
+    Case
     | CaseList Case
+    ;
 
 Case:
-    | "case" Expression ":" {
+    "case" Expression ":" {
         switch_case_t *switch_case = malloc(sizeof(switch_case_t));
         switch_case->expr = $2;
         snprintf(switch_case->labelstr, 250, "case_%i_%i", yylloc.first_line, yylloc.first_column);
@@ -482,6 +484,7 @@ Case:
         snprintf(labelstr, 256, "%s_end", head->data);
         block_create_goto(state, GOTO, labelstr);
     }
+    ;
 
 WhileBlock:
     "while" Expression {
@@ -526,6 +529,7 @@ WhileBlock:
         free(head->data);
         free(head);
     } ";"
+    ;
 
 IfBlock:
     "unless" Expression {
@@ -558,6 +562,7 @@ IfBlock:
           free(head->data);
           free(head);
       }
+      ;
 
 ElseBlock:
     | "else"  {
@@ -582,6 +587,7 @@ ElseBlock:
           free(head);
           list_prepend_new(&state->block_stack, strdup(labelstr));
       } IfBlock
+      ;
 
 
     /* TODO: Check the given parameters against the parameters expected for the
