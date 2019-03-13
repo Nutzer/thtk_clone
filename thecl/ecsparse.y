@@ -171,6 +171,7 @@ void set_time(parser_state_t* state, int new_time);
 %token ILLEGAL_TOKEN "illegal token"
 %token END_OF_FILE 0 "end of file"
 
+%token ASYNC "async"
 %token GOTO "goto"
 %token UNLESS "unless"
 %token IF "if"
@@ -586,7 +587,55 @@ ElseBlock:
     /* TODO: Check the given parameters against the parameters expected for the
      *       instruction. */
 Instruction:
-      IDENTIFIER "(" Instruction_Parameters ")" {
+    IDENTIFIER "(" Instruction_Parameters ")" "async" {
+        /* Search for subroutine */
+        bool sub_found = false;
+        thecl_sub_t* iter_sub;
+        list_for_each(&state->ecl->subs, iter_sub) {
+            if(strcmp(iter_sub->name, $1) == 0) {
+                sub_found = true;
+            }
+        }
+        if(sub_found) {
+            /* Create new arg list */
+            list_t *param_list = list_new();
+
+            /* Instr name */
+            thecl_param_t *param = param_new('z');
+            param->value.type = 'z';
+            param->value.val.z = $1;
+            list_append_new(param_list, param);
+
+            thecl_param_t *iter_param;
+            list_for_each($3, iter_param) {
+                param = param_new('D');
+                param->stack = iter_param->stack;
+                param->is_expression_param = iter_param->is_expression_param;
+                param->value.type = 'm';
+                param->value.val.m.length = 2*sizeof(int32_t);
+                param->value.val.m.data = malloc(2*sizeof(int32_t));
+                int32_t* D = (int32_t*)param->value.val.m.data;
+                switch(iter_param->value.type) {
+                case 'S':
+                    D[0] = 0x6969;
+                    D[1] = iter_param->value.val.S;
+                    break;
+                case 'f':
+                    D[0] = 0x6666;
+                    memcpy(&D[1], &iter_param->value.val.f, sizeof(float));
+                    break;
+                default:
+                    yyerror(state, "invalid sub parameter");
+                }
+                param_free(iter_param);
+                list_append_new(param_list, param);
+            }
+            instr_add(state->current_sub, instr_new_list(state, 15, param_list));
+        } else {
+            yyerror(state, "unknown sub");
+        }
+    }
+    | IDENTIFIER "(" Instruction_Parameters ")" {
         expression_t* expr;
         list_for_each(&state->expressions, expr) {
             expression_output(state, expr);
@@ -596,7 +645,52 @@ Instruction:
 
         eclmap_entry_t* ent = eclmap_find(g_eclmap_opcode, $1);
         if(!ent) {
-            yyerror(state, "unknown mnemonic");
+            /* Search for subroutine */
+            bool sub_found = false;
+            thecl_sub_t* iter_sub;
+            list_for_each(&state->ecl->subs, iter_sub) {
+                if(strcmp(iter_sub->name, $1) == 0) {
+                    sub_found = true;
+                }
+            }
+            if(sub_found) {
+                /* Create new arg list */
+                list_t *param_list = list_new();
+
+                /* Instr name */
+                thecl_param_t *param = param_new('z');
+                param->value.type = 'z';
+                param->value.val.z = $1;
+                list_append_new(param_list, param);
+
+                thecl_param_t *iter_param;
+                list_for_each($3, iter_param) {
+                    param = param_new('D');
+                    param->stack = iter_param->stack;
+                    param->is_expression_param = iter_param->is_expression_param;
+                    param->value.type = 'm';
+                    param->value.val.m.length = 2*sizeof(int32_t);
+                    param->value.val.m.data = malloc(2*sizeof(int32_t));
+                    int32_t* D = (int32_t*)param->value.val.m.data;
+                    switch(iter_param->value.type) {
+                    case 'S':
+                        D[0] = 0x6969;
+                        D[1] = iter_param->value.val.S;
+                        break;
+                    case 'f':
+                        D[0] = 0x6666;
+                        memcpy(&D[1], &iter_param->value.val.f, sizeof(float));
+                        break;
+                    default:
+                        yyerror(state, "invalid sub parameter");
+                    }
+                    param_free(iter_param);
+                    list_append_new(param_list, param);
+                }
+                instr_add(state->current_sub, instr_new_list(state, 11, param_list));
+            } else {
+                yyerror(state, "unknown mnemonic");
+            }
         }
         else {
             instr_add(state->current_sub, instr_new_list(state, ent->opcode, $3));
@@ -1008,11 +1102,11 @@ parse_rank(
     int rank = state->has_overdrive_difficulty ? 0xC0 : 0xF0;
 
     if (check_rank_flag(state, value, '*')) {
-        if (strlen(value) != 1) 
+        if (strlen(value) != 1)
             fprintf(stderr, "%s:parse_rank: in sub %s: * should not be used with other rank flags.\n", argv0, state->current_sub->name);
         return 0xFF;
     } else if (check_rank_flag(state, value, '-')) {
-        if (strlen(value) != 1) 
+        if (strlen(value) != 1)
             fprintf(stderr, "%s:parse_rank: in sub %s: - should not be used with other rank flags.\n", argv0, state->current_sub->name);
         return rank;
     } else {

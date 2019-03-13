@@ -79,6 +79,7 @@
 "local"    return LOCAL;
 "@"        return AT;
 
+"async"    return ASYNC;
 "goto"     return GOTO;
 "unless"   return UNLESS;
 "if"       return IF;
